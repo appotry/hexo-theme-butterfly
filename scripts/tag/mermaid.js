@@ -8,9 +8,9 @@
 
 const { escapeHTML } = require('hexo-util')
 
-function mermaid (args, content) {
+const mermaid = (args, content) => {
   return `<div class="mermaid-wrap"><pre class="mermaid-src" hidden>
-  ${escapeHTML(content)}
+    ${escapeHTML(content)}
   </pre></div>`
 }
 

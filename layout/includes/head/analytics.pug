@@ -4,20 +4,23 @@ if theme.baidu_analytics
     (function() {
       var hm = document.createElement("script");
       hm.src = "https://hm.baidu.com/hm.js?!{theme.baidu_analytics}";
-      var s = document.getElementsByTagName("script")[0]; 
+      var s = document.getElementsByTagName("script")[0];
       s.parentNode.insertBefore(hm, s);
     })();
+    btf.addGlobalFn('pjaxComplete', () => {
+      _hmt.push(['_trackPageview',window.location.pathname])
+    }, 'baidu_analytics')
 
 if theme.google_analytics
   script(async src=`https://www.googletagmanager.com/gtag/js?id=${theme.google_analytics}`)
   script.
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', '!{theme.google_analytics}');
-
-if theme.cnzz_analytics
-  script(async data-pjax src=`https://s4.cnzz.com/z_stat.php?id=${theme.cnzz_analytics}&web_id=${theme.cnzz_analytics}`)
+    window.dataLayer = window.dataLayer || []
+    function gtag(){dataLayer.push(arguments)}
+    gtag('js', new Date())
+    gtag('config', '!{theme.google_analytics}')
+    btf.addGlobalFn('pjaxComplete', () => {
+      gtag('config', '!{theme.google_analytics}', {'page_path': window.location.pathname})
+    }, 'google_analytics')
 
 if theme.cloudflare_analytics
   script(defer data-pjax src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon=`{"token": "${theme.cloudflare_analytics}"}`)
