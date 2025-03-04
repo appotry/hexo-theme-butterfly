@@ -1,45 +1,82 @@
 /**
- * Butterfly
- * ramdom cover
+ * Random cover for posts
  */
 
 'use strict'
 
-hexo.extend.filter.register('before_post_render', function (data) {
-  const { config } = this
-  if (config.post_asset_folder) {
-    const imgTestReg = /\.(png|jpe?g|gif|svg|webp)(\?.*)?$/
-    const topImg = data.top_img
-    const cover = data.cover
-    if (topImg && topImg.indexOf('/') === -1 && imgTestReg.test(topImg)) data.top_img = data.path + topImg
-    if (cover && cover.indexOf('/') === -1) data.cover = data.path + cover
+hexo.extend.generator.register('post', locals => {
+  const previousIndexes = []
+
+  const getRandomCover = defaultCover => {
+    if (!defaultCover) return false
+    if (!Array.isArray(defaultCover)) return defaultCover
+
+    const coverCount = defaultCover.length
+
+    if (coverCount === 1) {
+      return defaultCover[0]
+    }
+
+    const maxPreviousIndexes = coverCount === 2 ? 1 : (coverCount === 3 ? 2 : 3)
+
+    let index
+    do {
+      index = Math.floor(Math.random() * coverCount)
+    } while (previousIndexes.includes(index) && previousIndexes.length < coverCount)
+
+    previousIndexes.push(index)
+    if (previousIndexes.length > maxPreviousIndexes) {
+      previousIndexes.shift()
+    }
+
+    return defaultCover[index]
   }
 
-  if (data.cover === false) {
-    data.randomcover = randomCover()
+  const handleImg = data => {
+    const imgTestReg = /\.(png|jpe?g|gif|svg|webp|avif)(\?.*)?$/i
+    let { cover: coverVal, top_img: topImg } = data
+
+    // Add path to top_img and cover if post_asset_folder is enabled
+    if (hexo.config.post_asset_folder) {
+      if (topImg && topImg.indexOf('/') === -1 && imgTestReg.test(topImg)) {
+        data.top_img = `${data.path}${topImg}`
+      }
+      if (coverVal && coverVal.indexOf('/') === -1 && imgTestReg.test(coverVal)) {
+        data.cover = `${data.path}${coverVal}`
+      }
+    }
+
+    if (coverVal === false) return data
+
+    // If cover is not set, use random cover
+    if (!coverVal) {
+      const { cover: { default_cover: defaultCover } } = hexo.theme.config
+      const randomCover = getRandomCover(defaultCover)
+      data.cover = randomCover
+      coverVal = randomCover // update coverVal
+    }
+
+    if (coverVal && (coverVal.indexOf('//') !== -1 || imgTestReg.test(coverVal))) {
+      data.cover_type = 'img'
+    }
+
     return data
   }
 
-  data.cover = data.cover || randomCover()
-  return data
-})
+  // https://github.com/hexojs/hexo/blob/master/lib%2Fplugins%2Fgenerator%2Fpost.ts
+  const posts = locals.posts.sort('date').toArray()
+  const { length } = posts
 
-function randomCover () {
-  const theme = hexo.theme.config
-  let cover
-  let num
+  return posts.map((post, i) => {
+    if (i) post.prev = posts[i - 1]
+    if (i < length - 1) post.next = posts[i + 1]
 
-  if (theme.cover && theme.cover.default_cover) {
-    if (!Array.isArray(theme.cover.default_cover)) {
-      cover = theme.cover.default_cover
-      return cover
-    } else {
-      num = Math.floor(Math.random() * theme.cover.default_cover.length)
-      cover = theme.cover.default_cover[num]
-      return cover
+    post.__post = true
+
+    return {
+      data: handleImg(post),
+      layout: 'post',
+      path: post.path
     }
-  } else {
-    cover = theme.default_top_img || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-    return cover
-  }
-}
+  })
+})

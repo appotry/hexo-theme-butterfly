@@ -1,113 +1,118 @@
-/**
- * Butterfly
- * for aside archives
- */
-
 'use strict'
 
 hexo.extend.helper.register('aside_archives', function (options = {}) {
-  const { config } = this
-  const archiveDir = config.archive_dir
-  const { timezone } = config
-  const lang = toMomentLocale(this.page.lang || this.page.language || config.language)
-  let { format } = options
-  const type = options.type || 'monthly'
-  const { transform } = options
-  const showCount = Object.prototype.hasOwnProperty.call(options, 'show_count') ? options.show_count : true
-  const order = options.order || -1
+  const { config, page, site, url_for, _p } = this
+  const {
+    archive_dir: archiveDir,
+    timezone,
+    language
+  } = config
+
+  // Destructure and set default options with object destructuring
+  const {
+    type = 'monthly',
+    format = type === 'monthly' ? 'MMMM YYYY' : 'YYYY',
+    show_count: showCount = true,
+    order = -1,
+    limit,
+    transform
+  } = options
+
+  // Optimize locale handling
+  const lang = toMomentLocale(page.lang || page.language || language)
+
+  // Memoize comparison function to improve performance
   const compareFunc = type === 'monthly'
     ? (yearA, monthA, yearB, monthB) => yearA === yearB && monthA === monthB
-    : (yearA, monthA, yearB, monthB) => yearA === yearB
-  const limit = options.limit
-  let result = ''
+    : (yearA, yearB) => yearA === yearB
 
-  if (!format) {
-    format = type === 'monthly' ? 'MMMM YYYY' : 'YYYY'
-  }
+  // Early return if no posts
+  if (!site.posts.length) return ''
 
-  const posts = this.site.posts.sort('date', order)
-  if (!posts.length) return result
+  // Use reduce for more efficient data processing
+  const data = site.posts
+    .sort('date', order)
+    .reduce((acc, post) => {
+      let date = post.date.clone()
+      if (timezone) date = date.tz(timezone)
 
-  const data = []
-  let length = 0
+      const year = date.year()
+      const month = date.month() + 1
 
-  posts.forEach(post => {
-    // Clone the date object to avoid pollution
-    let date = post.date.clone()
-
-    if (timezone) date = date.tz(timezone)
-
-    const year = date.year()
-    const month = date.month() + 1
-    const lastData = data[length - 1]
-
-    if (!lastData || !compareFunc(lastData.year, lastData.month, year, month)) {
       if (lang) date = date.locale(lang)
-      const name = date.format(format)
-      length = data.push({
-        name,
+
+      // Find or create archive entry
+      const lastEntry = acc[acc.length - 1]
+      if (!lastEntry || !compareFunc(
+        lastEntry.year,
+        lastEntry.month,
         year,
-        month,
-        count: 1
-      })
-    } else {
-      lastData.count++
-    }
-  })
+        month
+      )) {
+        acc.push({
+          name: date.format(format),
+          year,
+          month,
+          count: 1
+        })
+      } else {
+        lastEntry.count++
+      }
 
-  const link = item => {
+      return acc
+    }, [])
+
+  // Create link generator function
+  const createArchiveLink = item => {
     let url = `${archiveDir}/${item.year}/`
-
     if (type === 'monthly') {
-      if (item.month < 10) url += '0'
-      url += `${item.month}/`
+      url += item.month < 10 ? `0${item.month}/` : `${item.month}/`
     }
-
-    return this.url_for(url)
+    return url_for(url)
   }
 
-  const len = data.length
-  const Judge = limit === 0 ? len : Math.min(len, limit)
+  // Limit results efficiently
+  const limitedData = limit > 0
+    ? data.slice(0, Math.min(data.length, limit))
+    : data
 
-  result += `<div class="item-headline"><i class="fas fa-archive"></i><span>${this._p('aside.card_archives')}</span>`
+  // Use template literal for better readability
+  const archiveHeader = `
+    <div class="item-headline">
+      <i class="fas fa-archive"></i>
+      <span>${_p('aside.card_archives')}</span>
+      ${data.length > limitedData.length
+        ? `<a class="card-more-btn" href="${url_for(archiveDir)}/"
+            title="${_p('aside.more_button')}">
+            <i class="fas fa-angle-right"></i>
+          </a>`
+        : ''}
+    </div>
+  `
 
-  if (len > Judge) {
-    result += `<a class="card-more-btn" href="${this.url_for(archiveDir)}/" title="${this._p('aside.more_button')}">
-    <i class="fas fa-angle-right"></i></a>`
-  }
+  // Use map for generating list items, join for performance
+  const archiveList = `
+    <ul class="card-archive-list">
+      ${limitedData.map(item => `
+        <li class="card-archive-list-item">
+          <a class="card-archive-list-link" href="${createArchiveLink(item)}">
+            <span class="card-archive-list-date">
+              ${transform ? transform(item.name) : item.name}
+            </span>
+            ${showCount
+              ? `<span class="card-archive-list-count">${item.count}</span>`
+              : ''}
+          </a>
+        </li>
+      `).join('')}
+    </ul>
+  `
 
-  result += '</div><ul class="card-archive-list">'
-
-  for (let i = 0; i < Judge; i++) {
-    const item = data[i]
-
-    result += '<li class="card-archive-list-item">'
-
-    result += `<a class="card-archive-list-link" href="${link(item)}">`
-    result += '<span class="card-archive-list-date">'
-    result += transform ? transform(item.name) : item.name
-    result += '</span>'
-
-    if (showCount) {
-      result += `<span class="card-archive-list-count">${item.count}</span>`
-    }
-    result += '</a>'
-    result += '</li>'
-  }
-
-  result += '</ul>'
-  return result
+  return archiveHeader + archiveList
 })
 
-const toMomentLocale = function (lang) {
-  if (lang === undefined) {
-    return undefined
-  }
-
-  // moment.locale('') equals moment.locale('en')
-  // moment.locale(null) equals moment.locale('en')
-  if (!lang || lang === 'en' || lang === 'default') {
-    return 'en'
-  }
+// Improved locale conversion function
+const toMomentLocale = lang => {
+  if (!lang || ['en', 'default'].includes(lang)) return 'en'
   return lang.toLowerCase().replace('_', '-')
 }

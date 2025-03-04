@@ -6,6 +6,10 @@
   opacity: 0
   transition: all .5s
 
+  &.rightside-show
+    opacity: .8
+    transform: translate(-58px, 0)
+
   #rightside-config-hide
     height: 0
     opacity: 0
@@ -28,12 +32,12 @@
       margin-bottom: 5px
       width: w = 35px
       height: w
-      border-radius: 5px
       background-color: var(--btn-bg)
       color: var(--btn-color)
       text-align: center
       font-size: 16px
       line-height: w
+      addBorderRadius(5)
 
       &:hover
         background-color: var(--btn-hover-color)
@@ -47,3 +51,22 @@
   +maxWidth900()
     #hide-aside-btn
       display: none
+
+  if hexo-config('rightside_scroll_percent')
+    #go-up
+      .scroll-percent
+        display: none
+
+      &.show-percent
+        .scroll-percent
+          display: block
+
+          & + i
+            display: none
+
+      &:hover
+        .scroll-percent
+          display: none
+
+          & + i
+            display: block
